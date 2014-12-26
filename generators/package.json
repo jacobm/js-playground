@@ -1,0 +1,14 @@
+{
+  "name": "generators",
+  "version": "0.0.1",
+  "description": "Playing around with generators",
+  "devDependencies": {
+    "browser-sync": "^1.8.2",
+    "browserify": "^8.0.1",
+    "gulp": "^3.8.10",
+    "vinyl-source-stream": "^1.0.0"
+  },
+  "dependencies": {
+    "js-csp": "^0.3.2"
+  }
+}
