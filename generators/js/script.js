@@ -31,11 +31,9 @@ f(it.next(3).value);
 f(it.next().value);
 f(it.next().value);
 
-var listen = function(id, eventName) {
-  var element = document.getElementById(id);
+var listen = function(element, eventName) {
   var chan = csp.chan();
-
-  element.addEventListener(eventName, function(event){
+  element.addEventListener(eventName, event => {
     csp.putAsync(chan, event);
   });
 
@@ -45,7 +43,7 @@ var listen = function(id, eventName) {
 
 window.onload = () => {
 
-  var buttonChan = listen("button", "click");
+  var buttonChan = listen(document.getElementById("button"), "click");
 
   csp.go(function*(){
     for(;;){
@@ -55,7 +53,46 @@ window.onload = () => {
   });
 
 
-  var searchChan = listen("search-button", "click");
+  var textChan = csp.chan();
+  csp.go(function*(){
+    var input = document.getElementById("throttle-input");
+    var inputChan = listen(input, 'keydown');
+    while(true){
+      yield csp.take(inputChan);
+      var text = input.value;
+      yield csp.put(textChan, text);
+    }
+  });
+  csp.go(function*(){
+    while(true){
+      var value = yield throttle(textChan, 500);
+      f(value);
+
+      var data = yield csp.take(businessSearch(value));
+      var requests = [];
+      for(var bu of data.businessUnits){
+        requests.push(businessData(bu.id));
+      }
+
+      // simple presentation
+      var root = document.getElementById("throttle-results");
+      root.innerHTML = '';
+      var numFound = document.createElement('div');
+      numFound.appendChild(document.createTextNode("Found for " + value + " returned " + data.businessUnits.length));
+      root.appendChild(numFound);
+
+      for(var r of requests){
+        var bu = yield r;
+        var div = document.createElement('div');
+        var elm = document.createTextNode("Name: " + bu.displayName + ", " + bu.trustScore);
+        div.appendChild(elm);
+        root.appendChild(div);
+      }
+
+    }
+  });
+
+  var searchChan = listen(document.getElementById("search-button"), "click");
 
   csp.go(function*(){
     var searchInput = document.getElementById("search-input");
@@ -139,6 +176,24 @@ function httpRequest(url) {
   req.open('get', url, true);
   req.send();
   return ch;
+}
+
+var throttle = function(inChan, ms){
+  var outChan = csp.chan();
+  csp.go(function*(){
+    var currentValue = yield csp.take(inChan);
+    while(true){
+      var timeout = csp.timeout(ms);
+      var v = yield csp.alts([timeout, inChan]);
+      if(v.channel === timeout){
+        yield csp.put(outChan, currentValue);
+      } else {
+        currentValue = v.value;
+      }
+    }
+  });
+
+  return outChan;
 }
 
 function jsonRequest(url) {
