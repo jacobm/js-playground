@@ -65,7 +65,7 @@ window.onload = () => {
   });
   csp.go(function*(){
     while(true){
-      var value = yield throttle(textChan, 500);
+      var value = yield delayWith(textChan, 1500);
       f(value);
 
       var data = yield csp.take(businessSearch(value));
@@ -177,6 +177,34 @@ function httpRequest(url) {
   req.send();
   return ch;
 }
+
+var delayWith = function(inChan, ms){
+  var outChan = csp.chan();
+  var sliding = csp.chan(csp.buffers.sliding(1));
+  csp.go(function*(){
+    while(true){
+      var value = yield csp.take(inChan);
+      yield csp.put(sliding, value);
+    }
+  });
+
+  csp.go(function*(){
+    while(true){
+      var currentValue = yield csp.take(sliding);
+      while(true){
+        var v = yield csp.alts([sliding, csp.timeout(ms)]);
+        if(v.value === csp.CLOSED){
+          break;
+        }
+        currentValue = v.value;
+      }
+      yield csp.put(outChan, currentValue);
+    }
+  });
+
+  return outChan;
+}
+
 
 var throttle = function(inChan, ms){
   var outChan = csp.chan();
